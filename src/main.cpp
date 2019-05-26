@@ -1,6 +1,11 @@
 #include <Arduino.h>
 #include <ESP32_SPIFFS_ShinonomeFNT.h>
 #include <ESP32_SPIFFS_UTF8toSJIS.h>
+#include <WiFiClientSecure.h>
+#include <time.h>
+#include <stdio.h>
+
+#define JST     3600* 9
 
 #define PORT_SE_IN 13
 #define PORT_AB_IN 27
@@ -22,6 +27,9 @@
 const char* UTF8SJIS_file = "/Utf8Sjis.tbl"; //UTF8 Shift_JIS 変換テーブルファイル名を記載しておく
 const char* Shino_Zen_Font_file = "/shnmk16.bdf"; //全角フォントファイル名を定義
 const char* Shino_Half_Font_file = "/shnm8x16.bdf"; //半角フォントファイル名を定義
+
+const char* ssid = "Buffalo-G-FAA8";
+const char* password = "34ywce7cffyup";
 
 ESP32_SPIFFS_ShinonomeFNT SFR;
 
@@ -142,6 +150,8 @@ void shift_color_left(uint8_t dist[], uint8_t src[], int len){
 //font_data:フォントデータ（東雲フォント）
 //color_data:フォントカラーデータ（半角毎に設定する）
 //intervals:スクロール間隔(ms)
+//
+////////////////////////////////////////////////////////////////////
 void scrollLEDMatrix(int16_t sj_length, uint8_t font_data[][16], uint8_t color_data[], uint16_t intervals){
   uint8_t src_line_data[sj_length] = {0};
   uint8_t dist_line_data[sj_length] = {0};
@@ -183,6 +193,49 @@ void scrollLEDMatrix(int16_t sj_length, uint8_t font_data[][16], uint8_t color_d
     }
     shift_color_left(tmp_color_data, tmp_color_data, sj_length);
     delay(intervals);
+  }
+}
+
+////////////////////////////////////////////////////////////////////
+//半角4バイトのフォントをスクロールしながら表示するメソッド
+//
+//sj_length:半角文字数
+//font_data:フォントデータ（東雲フォント）
+//color_data:フォントカラーデータ（半角毎に設定する）
+//intervals:スクロール間隔(ms)
+//
+////////////////////////////////////////////////////////////////////
+void printLEDMatrix(int16_t sj_length, uint8_t font_data[][16], uint8_t color_data[]){
+  uint8_t src_line_data[sj_length] = {0};
+  uint8_t tmp_color_data[sj_length * 8] = {0};
+  uint8_t tmp_font_data[sj_length][16] = {0};
+  uint8_t ram = LOW;
+
+  int n = 0;
+  for(int i = 0; i < sj_length; i++){
+  
+    //8ビット毎の色情報を1ビット毎に変換する
+    for(int j = 0; j < 8; j++){
+      tmp_color_data[n++] = color_data[i];
+    }
+  
+    //フォントデータを作業バッファにコピー
+    for(int j = 0; j < 16; j++){
+      tmp_font_data[i][j] = font_data[i][j];
+    }
+
+  }
+
+  for(int k = 0; k < sj_length * 8 + 2; k++){
+    ram = ~ram;
+    digitalWrite(PORT_AB_IN, ram);//RAM-A/RAM-Bに書き込み
+    for(int i = 0; i < 16; i++){
+      for(int j = 0; j < sj_length; j++){       
+        //フォントデータをビットシフト元バッファにコピー
+        src_line_data[j] = tmp_font_data[j][i];
+      }
+      send_line_data(i, src_line_data, tmp_color_data);
+    }
   }
 }
 
@@ -228,6 +281,28 @@ void setAllPortHigh(){
   digitalWrite(PORT_ALE_IN, HIGH);
 }
 
+void PrintTime(String &str, int flag)
+{
+  char tmp_str[10] = {0};
+  time_t t;
+  struct tm *tm;
+  //static const char *wd[7] = {"Sun","Mon","Tue","Wed","Thr","Fri","Sat"};
+
+  t = time(NULL);
+  tm = localtime(&t);
+  //Serial.printf(" %04d/%02d/%02d(%s) %02d:%02d:%02d\n",
+  //      tm->tm_year+1900, tm->tm_mon+1, tm->tm_mday,
+  //      wd[tm->tm_wday],
+  //      tm->tm_hour, tm->tm_min, tm->tm_sec); 
+  if(flag == 0){
+    sprintf(tmp_str, "*|%02d:%02d|", tm->tm_hour, tm->tm_min);
+  }else{
+    sprintf(tmp_str, " |%02d %02d|", tm->tm_hour, tm->tm_min);
+  }
+
+  str = tmp_str;
+}
+
 void setup() {
 
   uint16_t sj_length = 0;//半角文字数 
@@ -236,6 +311,17 @@ void setup() {
   Serial.begin(115200);
   setAllPortOutput();
   setAllPortLow();
+
+  WiFi.begin(ssid, password);
+  while(WiFi.status() != WL_CONNECTED) {
+    Serial.print('.');
+    delay(500);
+  }
+  Serial.println();
+  Serial.printf("Connected, IP address: ");
+  Serial.println(WiFi.localIP());
+
+  configTime( JST, 0, "ntp.nict.jp", "ntp.jst.mfeed.ad.jp");
 
   //手動で表示バッファを切り替える
   digitalWrite(PORT_SE_IN, HIGH);
@@ -250,11 +336,19 @@ void setup() {
   scrollLEDMatrix(sj_length, font_buf, font_color1, 80);
 }
 
+int flag = 0;
+
 void loop() {
   //フォントデータバッファ
-  uint8_t font_buf[30][16] = {0};
-  //フォント色データ　str1（半角文字毎に設定する）
-  uint8_t font_color1[30] = {G,G,G,G,G,G,O,O,O,O,G,G,O,O,G,G,O,O,R,R,R,R,R,R};
-  uint16_t sj_length = SFR.StrDirect_ShinoFNT_readALL("  令和元年05月20日（月）", font_buf);
-  scrollLEDMatrix(sj_length, font_buf, font_color1, 80);
+  uint8_t time_font_buf[8][16] = {0};
+  String str;
+  flag = ~flag;
+  PrintTime(str, flag);
+
+  //フォント色データ　str（半角文字毎に設定する）
+  uint8_t time_font_color[8] = {R,O,G,G,G,G,G,O};
+  uint16_t sj_length = SFR.StrDirect_ShinoFNT_readALL(str, time_font_buf);
+  printLEDMatrix(sj_length, time_font_buf, time_font_color);
+
+  delay(500);
 }
