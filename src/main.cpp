@@ -7,6 +7,7 @@
 
 #define JST     3600* 9
 
+//ポート設定
 #define PORT_SE_IN 13
 #define PORT_AB_IN 27
 #define PORT_A3_IN 23
@@ -19,20 +20,22 @@
 #define PORT_DR_IN 16
 #define PORT_ALE_IN 22
 
-#define PANEL_NUM     2
-#define R             1
-#define O             2
-#define G             3
+#define PANEL_NUM     2   //パネル枚数
+#define R             1   //赤色
+#define O             2   //橙色
+#define G             3   //緑色
 
-const char* UTF8SJIS_file = "/Utf8Sjis.tbl"; //UTF8 Shift_JIS 変換テーブルファイル名を記載しておく
-const char* Shino_Zen_Font_file = "/shnmk16.bdf"; //全角フォントファイル名を定義
+//これらのファイルをSPIFFS領域へコピーしておくこと
+const char* UTF8SJIS_file = "/Utf8Sjis.tbl";        //UTF8 Shift_JIS 変換テーブルファイル名を記載しておく
+const char* Shino_Zen_Font_file = "/shnmk16.bdf";   //全角フォントファイル名を定義
 const char* Shino_Half_Font_file = "/shnm8x16.bdf"; //半角フォントファイル名を定義
 
-const char* ssid = "Buffalo-G-FAA8";
-const char* password = "34ywce7cffyup";
+const char* ssid      = "Buffalo-G-FAA8";   //AP SSID
+const char* password  = "34ywce7cffyup";    //AP Pass Word
 
-ESP32_SPIFFS_ShinonomeFNT SFR;
+ESP32_SPIFFS_ShinonomeFNT SFR;  //東雲フォントをSPIFFSから取得するライブラリ
 
+//LEDマトリクスの書き込みアドレスを設定するメソッド
 void setRAMAdder(uint8_t lineNumber){
   uint8_t A[4] = {0};
   uint8_t adder = 0;
@@ -52,20 +55,18 @@ void setRAMAdder(uint8_t lineNumber){
 }
 
 ////////////////////////////////////////////////////////////////////////////////////
-//データを1行だけ書き込む
+//データをLEDマトリクスへ1行だけ書き込む
 //
 //iram_addr:データを書き込むアドレス（0~15）
 //ifont_data:フォント表示データ(32*PANEL_NUM bit)
-//color_data:フォント表示色配列:（32*PANEL_NUM bit）Red:1 Orange:2 Green:3 
-//
+//color_data:フォント表示色配列（32*PANEL_NUM bit）Red:1 Orange:2 Green:3 
 ////////////////////////////////////////////////////////////////////////////////////
 void send_line_data(uint8_t iram_adder, uint8_t ifont_data[], uint8_t color_data[]){
-  
-  uint8_t font[8]       = {0};
-  uint8_t tmp_data      = 0;
-  int k = 0;
 
-  for(int j = 0; j < 4 * PANEL_NUM; j++){
+  uint8_t font[8]   = {0};
+  uint8_t tmp_data  = 0;
+  int k = 0;
+for(int j = 0; j < 4 * PANEL_NUM; j++){
     //ビットデータに変換
     tmp_data = ifont_data[j];   
     for(int i = 0; i < 8; i++){    
@@ -117,6 +118,7 @@ void send_line_data(uint8_t iram_adder, uint8_t ifont_data[], uint8_t color_data
 
 ///////////////////////////////////////////////////////////////
 //配列をnビット左へシフトする関数
+//
 //dist:格納先の配列
 //src:入力元の配列
 //len:配列の要素数
@@ -144,13 +146,12 @@ void shift_color_left(uint8_t dist[], uint8_t src[], int len){
 }
 
 ////////////////////////////////////////////////////////////////////
-//半角4バイトのフォントをスクロールしながら表示するメソッド
+//フォントをスクロールしながら表示するメソッド
 //
 //sj_length:半角文字数
 //font_data:フォントデータ（東雲フォント）
 //color_data:フォントカラーデータ（半角毎に設定する）
 //intervals:スクロール間隔(ms)
-//
 ////////////////////////////////////////////////////////////////////
 void scrollLEDMatrix(int16_t sj_length, uint8_t font_data[][16], uint8_t color_data[], uint16_t intervals){
   uint8_t src_line_data[sj_length] = {0};
@@ -197,13 +198,11 @@ void scrollLEDMatrix(int16_t sj_length, uint8_t font_data[][16], uint8_t color_d
 }
 
 ////////////////////////////////////////////////////////////////////
-//半角4バイトのフォントをスクロールしながら表示するメソッド
+//フォントを静的に表示するメソッド
 //
 //sj_length:半角文字数
 //font_data:フォントデータ（東雲フォント）
-//color_data:フォントカラーデータ（半角毎に設定する）
-//intervals:スクロール間隔(ms)
-//
+//color_data:フォントカラーデータ（半角毎に設定する）//
 ////////////////////////////////////////////////////////////////////
 void printLEDMatrix(int16_t sj_length, uint8_t font_data[][16], uint8_t color_data[]){
   uint8_t src_line_data[sj_length] = {0};
@@ -295,7 +294,7 @@ void PrintTime(String &str, int flag)
   //      wd[tm->tm_wday],
   //      tm->tm_hour, tm->tm_min, tm->tm_sec); 
   if(flag == 0){
-    sprintf(tmp_str, "*|%02d:%02d|", tm->tm_hour, tm->tm_min);
+    sprintf(tmp_str, " |%02d:%02d|", tm->tm_hour, tm->tm_min);
   }else{
     sprintf(tmp_str, " |%02d %02d|", tm->tm_hour, tm->tm_min);
   }
@@ -336,12 +335,13 @@ void setup() {
   scrollLEDMatrix(sj_length, font_buf, font_color1, 80);
 }
 
-int flag = 0;
-
-void loop() {
+void printTimeLEDMatrix(){
   //フォントデータバッファ
   uint8_t time_font_buf[8][16] = {0};
   String str;
+
+  static int flag = 0;
+
   flag = ~flag;
   PrintTime(str, flag);
 
@@ -349,6 +349,30 @@ void loop() {
   uint8_t time_font_color[8] = {R,O,G,G,G,G,G,O};
   uint16_t sj_length = SFR.StrDirect_ShinoFNT_readALL(str, time_font_buf);
   printLEDMatrix(sj_length, time_font_buf, time_font_color);
+}
 
-  delay(500);
+void printWeatherInfoLEDMatrix(){
+
+}
+
+uint16_t getWeatherInfo(){
+
+  return 0;
+}
+
+void loop() {
+
+  uint16_t info = getWeatherInfo();
+
+  switch(info){
+    case 0:
+      printTimeLEDMatrix();
+      delay(500);
+    break;
+    case 1:
+      printWeatherInfoLEDMatrix();
+    break;
+    default:
+      ;//nothing
+  }
 }
