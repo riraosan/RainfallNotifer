@@ -33,7 +33,39 @@ const char* Shino_Half_Font_file = "/shnm8x16.bdf"; //半角フォントファ�
 const char* ssid      = "Buffalo-G-FAA8";   //AP SSID
 const char* password  = "34ywce7cffyup";    //AP Pass Word
 
+const char* appid = "dj00aiZpPU5xUWRpRTlhZXpBMCZzPWNvbnN1bWVyc2VjcmV0Jng9MzY-";//APP ID
+const char* longitude = "135.449513";//経度
+const char* latitude = "34.537694";//緯度
+const char* output = "json";//出力形式
+const char* server = "map.yahooapis.jp";
+
+//const char* MapYahooApisURL = "https://map.yahooapis.jp/weather/V1/place?appid=dj00aiZpPU5xUWRpRTlhZXpBMCZzPWNvbnN1bWVyc2VjcmV0Jng9MzY-&coordinates=135.449513,34.537694&output=json";
+
+const char* yahooapi_root_ca= \
+     "-----BEGIN CERTIFICATE-----\n" \
+     "MIIDdzCCAl+gAwIBAgIEAgAAuTANBgkqhkiG9w0BAQUFADBaMQswCQYDVQQGEwJJ\n" \
+     "RTESMBAGA1UEChMJQmFsdGltb3JlMRMwEQYDVQQLEwpDeWJlclRydXN0MSIwIAYD\n" \
+     "VQQDExlCYWx0aW1vcmUgQ3liZXJUcnVzdCBSb290MB4XDTAwMDUxMjE4NDYwMFoX\n" \
+     "DTI1MDUxMjIzNTkwMFowWjELMAkGA1UEBhMCSUUxEjAQBgNVBAoTCUJhbHRpbW9y\n" \
+     "ZTETMBEGA1UECxMKQ3liZXJUcnVzdDEiMCAGA1UEAxMZQmFsdGltb3JlIEN5YmVy\n" \
+     "VHJ1c3QgUm9vdDCCASIwDQYJKoZIhvcNAQEBBQADggEPADCCAQoCggEBAKMEuyKr\n" \
+     "mD1X6CZymrV51Cni4eiVgLGw41uOKymaZN+hXe2wCQVt2yguzmKiYv60iNoS6zjr\n" \
+     "IZ3AQSsBUnuId9Mcj8e6uYi1agnnc+gRQKfRzMpijS3ljwumUNKoUMMo6vWrJYeK\n" \
+     "mpYcqWe4PwzV9/lSEy/CG9VwcPCPwBLKBsua4dnKM3p31vjsufFoREJIE9LAwqSu\n" \
+     "XmD+tqYF/LTdB1kC1FkYmGP1pWPgkAx9XbIGevOF6uvUA65ehD5f/xXtabz5OTZy\n" \
+     "dc93Uk3zyZAsuT3lySNTPx8kmCFcB5kpvcY67Oduhjprl3RjM71oGDHweI12v/ye\n" \
+     "jl0qhqdNkNwnGjkCAwEAAaNFMEMwHQYDVR0OBBYEFOWdWTCCR1jMrPoIVDaGezq1\n" \
+     "BE3wMBIGA1UdEwEB/wQIMAYBAf8CAQMwDgYDVR0PAQH/BAQDAgEGMA0GCSqGSIb3\n" \
+     "DQEBBQUAA4IBAQCFDF2O5G9RaEIFoN27TyclhAO992T9Ldcw46QQF+vaKSm2eT92\n" \
+     "9hkTI7gQCvlYpNRhcL0EYWoSihfVCr3FvDB81ukMJY2GQE/szKN+OMY3EU/t3Wgx\n" \
+     "jkzSswF07r51XgdIGn9w/xZchMB5hbgF/X++ZRGjD8ACtPhSNzkE1akxehi/oCr0\n" \
+     "Epn3o0WC4zxe9Z2etciefC7IpJ5OCBRLbf1wbWsaY71k5h+3zvDyny67G7fyUIhz\n" \
+     "ksLi4xaNmjICq44Y3ekQEe5+NauQrz4wlHrQMz2nZQ/1/I6eYs9HRCwBXbsdtTLS\n" \
+     "R9I4LtD+gdwyah617jzV/OeBHRnDJELqYzmp\n" \
+     "-----END CERTIFICATE-----\n";
+
 ESP32_SPIFFS_ShinonomeFNT SFR;  //東雲フォントをSPIFFSから取得するライブラリ
+WiFiClientSecure client;
 
 //LEDマトリクスの書き込みアドレスを設定するメソッド
 void setRAMAdder(uint8_t lineNumber){
@@ -66,7 +98,7 @@ void send_line_data(uint8_t iram_adder, uint8_t ifont_data[], uint8_t color_data
   uint8_t font[8]   = {0};
   uint8_t tmp_data  = 0;
   int k = 0;
-for(int j = 0; j < 4 * PANEL_NUM; j++){
+  for(int j = 0; j < 4 * PANEL_NUM; j++){
     //ビットデータに変換
     tmp_data = ifont_data[j];   
     for(int i = 0; i < 8; i++){    
@@ -302,39 +334,6 @@ void PrintTime(String &str, int flag)
   str = tmp_str;
 }
 
-void setup() {
-
-  uint16_t sj_length = 0;//半角文字数 
-
-  delay(1000);
-  Serial.begin(115200);
-  setAllPortOutput();
-  setAllPortLow();
-
-  WiFi.begin(ssid, password);
-  while(WiFi.status() != WL_CONNECTED) {
-    Serial.print('.');
-    delay(500);
-  }
-  Serial.println();
-  Serial.printf("Connected, IP address: ");
-  Serial.println(WiFi.localIP());
-
-  configTime( JST, 0, "ntp.nict.jp", "ntp.jst.mfeed.ad.jp");
-
-  //手動で表示バッファを切り替える
-  digitalWrite(PORT_SE_IN, HIGH);
-
-  //フォントデータバッファ
-  uint8_t font_buf[26][16] = {0};
-  //フォント色データ　str1（半角文字毎に設定する）
-  uint8_t font_color1[26] = {G,G,R,R,R,R,G,G,G,G,G,R,G,G,G,G,R,G,G,G,G,R,O,O,O,O};
-
-  SFR.SPIFFS_Shinonome_Init3F(UTF8SJIS_file, Shino_Half_Font_file, Shino_Zen_Font_file);
-  sj_length = SFR.StrDirect_ShinoFNT_readALL("  起動OK", font_buf);
-  scrollLEDMatrix(sj_length, font_buf, font_color1, 80);
-}
-
 void printTimeLEDMatrix(){
   //フォントデータバッファ
   uint8_t time_font_buf[8][16] = {0};
@@ -355,14 +354,109 @@ void printWeatherInfoLEDMatrix(){
 
 }
 
+void  makeGetStr(String &getStr){
+    getStr = "GET /weather/V1/place?coordinates="; 
+    getStr += longitude;
+    getStr += ",";
+    getStr += latitude;
+    getStr += "&output=";
+    getStr += output;
+    getStr += " HTTP/1.1";
+}
+
+void getWeatherJsonInfo(String &resultJson){
+  String getStr;
+  String hostStr;
+  String agentStr;
+
+  client.setCACert(yahooapi_root_ca);
+
+  Serial.println("\nStarting connection to server...");
+  if (!client.connect(server, 443)){
+    Serial.println("Connection failed!");
+  }else {
+    Serial.println("Connected to server!");
+  
+    // Make a HTTP request:
+
+    makeGetStr(getStr);
+    client.println(getStr);
+    client.println("Host: map.yahooapis.jp");
+    client.println("User-Agent: Yahoo AppID: dj00aiZpPU5xUWRpRTlhZXpBMCZzPWNvbnN1bWVyc2VjcmV0Jng9MzY-");
+    client.println("Connection: close");
+    client.println();
+
+    while (client.connected()) {
+      String line = client.readStringUntil('\n');
+      if (line == "\r") {
+        Serial.println("headers received");
+        break;
+      }
+    }
+
+    while (client.available()) {
+      resultJson += (char)client.read();
+    }
+
+    client.stop();
+  }
+
+}
+
 uint16_t getWeatherInfo(){
+
+  String weatherJsonInfo;
+
+  getWeatherJsonInfo(weatherJsonInfo);
+
+  Serial.println(weatherJsonInfo);
 
   return 0;
 }
 
+void setup() {
+
+  uint16_t sj_length = 0;//半角文字数 
+
+  delay(1000);
+  Serial.begin(115200);
+  setAllPortOutput();
+  setAllPortLow();
+
+  WiFi.begin(ssid, password);
+  while(WiFi.status() != WL_CONNECTED) {
+    Serial.print('.');
+    delay(500);
+  }
+  Serial.println();
+  Serial.printf("Connected, IP address: ");
+  Serial.println(WiFi.localIP());
+  Serial.print("Connected to ");
+  Serial.println(ssid);
+
+  configTime( JST, 0, "ntp.nict.jp", "ntp.jst.mfeed.ad.jp");
+
+  //手動で表示バッファを切り替える
+  digitalWrite(PORT_SE_IN, HIGH);
+
+  //フォントデータバッファ
+  uint8_t font_buf[26][16] = {0};
+  //フォント色データ　str1（半角文字毎に設定する）
+  uint8_t font_color1[26] = {G,G,G,G,R,R,G,G,G,G,G,R,G,G,G,G,R,G,G,G,G,R,O,O,O,O};
+
+  SFR.SPIFFS_Shinonome_Init3F(UTF8SJIS_file, Shino_Half_Font_file, Shino_Zen_Font_file);
+  sj_length = SFR.StrDirect_ShinoFNT_readALL("  OK", font_buf);
+  scrollLEDMatrix(sj_length, font_buf, font_color1, 80);
+
+  getWeatherInfo();
+
+}
+
 void loop() {
 
-  uint16_t info = getWeatherInfo();
+  //uint16_t info = getWeatherInfo();
+
+  uint16_t info = 0;
 
   switch(info){
     case 0:
