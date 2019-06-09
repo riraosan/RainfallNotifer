@@ -4,6 +4,7 @@
 #include <WiFiClientSecure.h>
 #include <time.h>
 #include <stdio.h>
+#include <ArduinoJson.h>
 
 #define JST     3600* 9
 
@@ -26,20 +27,18 @@
 #define G             3   //緑色
 
 //これらのファイルをSPIFFS領域へコピーしておくこと
-const char* UTF8SJIS_file = "/Utf8Sjis.tbl";        //UTF8 Shift_JIS 変換テーブルファイル名を記載しておく
-const char* Shino_Zen_Font_file = "/shnmk16.bdf";   //全角フォントファイル名を定義
-const char* Shino_Half_Font_file = "/shnm8x16.bdf"; //半角フォントファイル名を定義
+const char* UTF8SJIS_file         = "/Utf8Sjis.tbl";  //UTF8 Shift_JIS 変換テーブルファイル名を記載しておく
+const char* Shino_Zen_Font_file   = "/shnmk16.bdf";   //全角フォントファイル名を定義
+const char* Shino_Half_Font_file  = "/shnm8x16.bdf";  //半角フォントファイル名を定義
 
-const char* ssid      = "Buffalo-G-FAA8";   //AP SSID
-const char* password  = "34ywce7cffyup";    //AP Pass Word
+const char* ssid        = "Buffalo-G-FAA8";   //AP SSID
+const char* password    = "34ywce7cffyup";    //AP Pass Word
 
-const char* appid = "dj00aiZpPU5xUWRpRTlhZXpBMCZzPWNvbnN1bWVyc2VjcmV0Jng9MzY-";//APP ID
-const char* longitude = "135.449513";//経度
-const char* latitude = "34.537694";//緯度
-const char* output = "json";//出力形式
-const char* server = "map.yahooapis.jp";
-
-//const char* MapYahooApisURL = "https://map.yahooapis.jp/weather/V1/place?appid=dj00aiZpPU5xUWRpRTlhZXpBMCZzPWNvbnN1bWVyc2VjcmV0Jng9MzY-&coordinates=135.449513,34.537694&output=json";
+const char* appid       = "dj00aiZpPU5xUWRpRTlhZXpBMCZzPWNvbnN1bWVyc2VjcmV0Jng9MzY-";//APP ID
+const char* zipcode     = "592-8344";
+//const char* coordinates = "135.449513,34.537694";//経度, 緯度
+const char* output      = "json";//出力形式
+const char* server      = "map.yahooapis.jp";
 
 const char* yahooapi_root_ca= \
      "-----BEGIN CERTIFICATE-----\n" \
@@ -353,18 +352,124 @@ void printTimeLEDMatrix(){
 void printWeatherInfoLEDMatrix(){
 
 }
+void makeHostStr(String &hostStr){
+  hostStr = "Host: ";
+  hostStr += server;
+}
 
-void  makeGetStr(String &getStr){
-    getStr = "GET /weather/V1/place?coordinates="; 
-    getStr += longitude;
-    getStr += ",";
-    getStr += latitude;
+void makeAgentStr(String &agentStr){
+  agentStr = "User-Agent: Yahoo AppID: ";
+  agentStr += appid;
+}
+
+void getYahooApiJsonInfo(String httpRequest, String &resultJson){
+  String getStr;
+  String hostStr;
+  String agentStr;
+
+  client.setCACert(yahooapi_root_ca);
+
+  Serial.println("\nStarting connection to server...");
+  if (!client.connect(server, 443)){
+    Serial.println("Connection failed!");
+  }else {
+    Serial.println("Connected to server!");
+  
+    client.println(httpRequest);
+    client.println();
+
+    while (client.connected()) {
+      String line = client.readStringUntil('\n');
+      if (line == "\r") {
+        Serial.println("headers received");
+        break;
+      }
+    }
+
+    while (client.available()) {
+      resultJson += (char)client.read();
+    }
+
+    client.stop();
+  }
+}
+
+void makeGetZipCodeStr(String zipcode, String &getStr){
+    getStr = "GET /search/zip/V1/zipCodeSearch?query=";
+    getStr += zipcode;
     getStr += "&output=";
     getStr += output;
     getStr += " HTTP/1.1";
+} 
+
+void makeZipCodeHttpRequestStr(String &httpRequest){
+  String getStr;
+  String hostStr;
+  String agentStr;
+  String coordinates;
+
+  makeGetZipCodeStr(zipcode, getStr);
+  makeHostStr(hostStr);
+  makeAgentStr(agentStr);
+
+  httpRequest = getStr;
+  httpRequest += "\n";
+  httpRequest += hostStr;
+  httpRequest += "\n";
+  httpRequest += agentStr;
+  httpRequest += "\n";
+  httpRequest += "Connection: close";
 }
 
-void getWeatherJsonInfo(String &resultJson){
+void getCoordinatesFromZipcode(String zipcode, String &coordinates){
+  String httpRequest;
+  String resultJson;
+  
+  //httpRequestを作成する
+  makeZipCodeHttpRequestStr(httpRequest);
+
+  Serial.println(httpRequest);
+
+  getYahooApiJsonInfo(httpRequest, resultJson);
+
+  Serial.println(resultJson);
+
+  //ここにcoordinateを取得するコードを書く(未完成)
+
+  coordinates = "135.449513,34.537694";
+}
+
+void makeGetStr(String coordinates, String &getStr){
+  getStr = "GET /weather/V1/place?coordinates="; 
+  getStr += coordinates;
+  getStr += "&output=";
+  getStr += output;
+  getStr += " HTTP/1.1";
+}
+
+void makeWeatherHttpRequestStr(String &httpRequest){
+  String getStr;
+  String hostStr;
+  String agentStr;
+  String coordinates;
+
+  getCoordinatesFromZipcode(zipcode, coordinates);
+
+  makeGetStr(coordinates, getStr);
+  makeHostStr(hostStr);
+  makeAgentStr(agentStr);
+
+  httpRequest = getStr;
+  httpRequest += "\n";
+  httpRequest += hostStr;
+  httpRequest += "\n";
+  httpRequest += agentStr;
+  httpRequest += "\n";
+  httpRequest += "Connection: close";
+}
+
+
+void getWeatherJsonInfo(String coordinates, String &resultJson){
   String getStr;
   String hostStr;
   String agentStr;
@@ -378,11 +483,12 @@ void getWeatherJsonInfo(String &resultJson){
     Serial.println("Connected to server!");
   
     // Make a HTTP request:
-
-    makeGetStr(getStr);
+    makeGetStr(coordinates, getStr);
     client.println(getStr);
-    client.println("Host: map.yahooapis.jp");
-    client.println("User-Agent: Yahoo AppID: dj00aiZpPU5xUWRpRTlhZXpBMCZzPWNvbnN1bWVyc2VjcmV0Jng9MzY-");
+    makeHostStr(hostStr);
+    client.println(hostStr);
+    makeAgentStr(agentStr);
+    client.println(agentStr);
     client.println("Connection: close");
     client.println();
 
@@ -400,16 +506,40 @@ void getWeatherJsonInfo(String &resultJson){
 
     client.stop();
   }
-
 }
+
+
 
 uint16_t getWeatherInfo(){
 
   String weatherJsonInfo;
+  String httpRequest;
 
-  getWeatherJsonInfo(weatherJsonInfo);
+  //getWeatherJsonInfo(coordinates, weatherJsonInfo);
+  makeWeatherHttpRequestStr(httpRequest);
 
-  Serial.println(weatherJsonInfo);
+  //Serial.println(httpRequest);
+
+  getYahooApiJsonInfo(httpRequest, weatherJsonInfo);
+
+  //Serial.println(weatherJsonInfo);
+
+  const size_t capacity = JSON_ARRAY_SIZE(1) + JSON_ARRAY_SIZE(7) + JSON_OBJECT_SIZE(1) + 3*JSON_OBJECT_SIZE(2) + 7*JSON_OBJECT_SIZE(3) + JSON_OBJECT_SIZE(4) + JSON_OBJECT_SIZE(7) + 660;
+  DynamicJsonDocument doc(capacity);
+
+  deserializeJson(doc, weatherJsonInfo);
+  JsonObject Feature_0 = doc["Feature"][0];
+
+  JsonArray Feature_0_Property_WeatherList_Weather = Feature_0["Property"]["WeatherList"]["Weather"];
+
+  for(int i = 0; i < 7; i++){
+    JsonObject Feature_0_Property_WeatherList_Weather_0 = Feature_0_Property_WeatherList_Weather[i];
+    const char* Type = Feature_0_Property_WeatherList_Weather_0["Type"];
+    const char* Date = Feature_0_Property_WeatherList_Weather_0["Date"];
+    int Rainfall = Feature_0_Property_WeatherList_Weather_0["Rainfall"];
+
+    Serial.printf("%s %s %d \n", Type, Date, Rainfall);
+  }
 
   return 0;
 }
