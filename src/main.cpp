@@ -435,7 +435,6 @@ void getCoordinatesFromZipcode(String zipcode, String &coordinates){
 
   //Serial.println(resultJson);
 
-  //ここにcoordinateを取得するコードを書く(未完成)
   const size_t capacity = JSON_ARRAY_SIZE(0) + JSON_ARRAY_SIZE(1) + JSON_ARRAY_SIZE(2) + JSON_ARRAY_SIZE(3) + 6*JSON_OBJECT_SIZE(2) + JSON_OBJECT_SIZE(7) + 2*JSON_OBJECT_SIZE(8) + 3*JSON_OBJECT_SIZE(9) + 990;
 
   DynamicJsonDocument doc(capacity);
@@ -444,7 +443,7 @@ void getCoordinatesFromZipcode(String zipcode, String &coordinates){
 
   JsonObject Feature_0 = doc["Feature"][0];
 
-  const char* Feature_0_Geometry_Coordinates = Feature_0["Geometry"]["Coordinates"]; // "135.44933744,34.53605758"
+  const char* Feature_0_Geometry_Coordinates = Feature_0["Geometry"]["Coordinates"];
 
   Serial.printf("Coordinates = %s\n", Feature_0_Geometry_Coordinates);
 
@@ -480,57 +479,14 @@ void makeWeatherHttpRequestStr(String &httpRequest){
   httpRequest += "Connection: close";
 }
 
-
-void getWeatherJsonInfo(String coordinates, String &resultJson){
-  String getStr;
-  String hostStr;
-  String agentStr;
-
-  client.setCACert(yahooapi_root_ca);
-
-  Serial.println("\nStarting connection to server...");
-  if (!client.connect(server, 443)){
-    Serial.println("Connection failed!");
-  }else {
-    Serial.println("Connected to server!");
-  
-    // Make a HTTP request:
-    makeGetStr(coordinates, getStr);
-    client.println(getStr);
-    makeHostStr(hostStr);
-    client.println(hostStr);
-    makeAgentStr(agentStr);
-    client.println(agentStr);
-    client.println("Connection: close");
-    client.println();
-
-    while (client.connected()) {
-      String line = client.readStringUntil('\n');
-      if (line == "\r") {
-        Serial.println("headers received");
-        break;
-      }
-    }
-
-    while (client.available()) {
-      resultJson += (char)client.read();
-    }
-
-    client.stop();
-  }
-}
-
-
-
 uint16_t getWeatherInfo(){
 
   String weatherJsonInfo;
   String httpRequest;
 
-  //getWeatherJsonInfo(coordinates, weatherJsonInfo);
   makeWeatherHttpRequestStr(httpRequest);
 
-  //Serial.println(httpRequest);
+  Serial.println(httpRequest);
 
   getYahooApiJsonInfo(httpRequest, weatherJsonInfo);
 
