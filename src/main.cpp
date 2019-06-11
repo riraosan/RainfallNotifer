@@ -4,6 +4,7 @@
 #include <WiFiClientSecure.h>
 #include <time.h>
 #include <stdio.h>
+#define ARDUINOJSON_DECODE_UNICODE 1
 #include <ArduinoJson.h>
 
 #define JST     3600* 9
@@ -432,11 +433,22 @@ void getCoordinatesFromZipcode(String zipcode, String &coordinates){
 
   getYahooApiJsonInfo(httpRequest, resultJson);
 
-  Serial.println(resultJson);
+  //Serial.println(resultJson);
 
   //ここにcoordinateを取得するコードを書く(未完成)
+  const size_t capacity = JSON_ARRAY_SIZE(0) + JSON_ARRAY_SIZE(1) + JSON_ARRAY_SIZE(2) + JSON_ARRAY_SIZE(3) + 6*JSON_OBJECT_SIZE(2) + JSON_OBJECT_SIZE(7) + 2*JSON_OBJECT_SIZE(8) + 3*JSON_OBJECT_SIZE(9) + 990;
 
-  coordinates = "135.449513,34.537694";
+  DynamicJsonDocument doc(capacity);
+
+  deserializeJson(doc, resultJson);
+
+  JsonObject Feature_0 = doc["Feature"][0];
+
+  const char* Feature_0_Geometry_Coordinates = Feature_0["Geometry"]["Coordinates"]; // "135.44933744,34.53605758"
+
+  Serial.printf("Coordinates = %s\n", Feature_0_Geometry_Coordinates);
+
+  coordinates = Feature_0_Geometry_Coordinates;
 }
 
 void makeGetStr(String coordinates, String &getStr){
