@@ -350,9 +350,6 @@ void printTimeLEDMatrix(){
   printLEDMatrix(sj_length, time_font_buf, time_font_color);
 }
 
-void printWeatherInfoLEDMatrix(){
-
-}
 void makeHostStr(String &hostStr){
   hostStr = "Host: ";
   hostStr += server;
@@ -479,10 +476,34 @@ void makeWeatherHttpRequestStr(String &httpRequest){
   httpRequest += "Connection: close";
 }
 
-uint16_t getWeatherInfo(){
+void getWeatherStrings(JsonArray &i_weather, int i_index, String &o_type, String &o_date, float &o_rainfall){
+  JsonObject Feature_0_Property_WeatherList_Weather_0 = i_weather[i_index];
+  const char* Type = Feature_0_Property_WeatherList_Weather_0["Type"];
+  const char* Date = Feature_0_Property_WeatherList_Weather_0["Date"];
+  float Rainfall = Feature_0_Property_WeatherList_Weather_0["Rainfall"];
+
+  o_type = Type;
+  o_date = Date;
+  o_rainfall = Rainfall;
+
+}
+
+//雨降りの状態
+#define RAINFALL_END    0x01  //降雨が終わる時点
+#define RAINFALL_NO     0x02  //雨が降っていない状態　
+#define RAINFALL_START  0x03  //降雨が開始する時点
+#define RAINFALL_NOW    0x04  //雨が継続的に降っている状態
+
+uint16_t getWeatherInfo(int &forcast_time){
 
   String weatherJsonInfo;
   String httpRequest;
+
+  String type;
+  String date;
+  float rainfall = 0;
+  
+  uint16_t weatherInfo = 0;
 
   makeWeatherHttpRequestStr(httpRequest);
 
@@ -490,7 +511,7 @@ uint16_t getWeatherInfo(){
 
   getYahooApiJsonInfo(httpRequest, weatherJsonInfo);
 
-  //Serial.println(weatherJsonInfo);
+  Serial.println(weatherJsonInfo);
 
   const size_t capacity = JSON_ARRAY_SIZE(1) + JSON_ARRAY_SIZE(7) + JSON_OBJECT_SIZE(1) + 3*JSON_OBJECT_SIZE(2) + 7*JSON_OBJECT_SIZE(3) + JSON_OBJECT_SIZE(4) + JSON_OBJECT_SIZE(7) + 660;
   DynamicJsonDocument doc(capacity);
@@ -498,18 +519,40 @@ uint16_t getWeatherInfo(){
   deserializeJson(doc, weatherJsonInfo);
   JsonObject Feature_0 = doc["Feature"][0];
 
-  JsonArray Feature_0_Property_WeatherList_Weather = Feature_0["Property"]["WeatherList"]["Weather"];
+  JsonArray WeatherList = Feature_0["Property"]["WeatherList"]["Weather"];
 
-  for(int i = 0; i < 7; i++){
-    JsonObject Feature_0_Property_WeatherList_Weather_0 = Feature_0_Property_WeatherList_Weather[i];
-    const char* Type = Feature_0_Property_WeatherList_Weather_0["Type"];
-    const char* Date = Feature_0_Property_WeatherList_Weather_0["Date"];
-    int Rainfall = Feature_0_Property_WeatherList_Weather_0["Rainfall"];
+  getWeatherStrings(WeatherList, 0, type, date, rainfall);
 
-    Serial.printf("%s %s %d \n", Type, Date, Rainfall);
+  //現在雨が降っていない
+  if(rainfall == 0.00){
+    for(int i = 1; i < 7; i++){
+      getWeatherStrings(WeatherList, i, type, date, rainfall);
+      if(rainfall > 0.00){
+        //i*10 分後に雨が降ります。
+        forcast_time = i * 10;
+        weatherInfo = RAINFALL_START;
+        break;
+      }
+      else{
+        weatherInfo = RAINFALL_NO;
+      }
+    } 
+  }else{//現在雨が降っている
+    for(int i = 1; i < 7; i++){
+      getWeatherStrings(WeatherList, i, type, date, rainfall);
+      if(rainfall == 0.00){
+        //i*10 分後に雨が止みます。
+        forcast_time = i * 10;
+        weatherInfo = RAINFALL_END;
+        break;
+      }else{
+        //しばらく雨が降ります。６０分後も降雨状態
+        weatherInfo = RAINFALL_NOW;
+      }
+    }
   }
 
-  return 0;
+  return weatherInfo;
 }
 
 void setup() {
@@ -538,33 +581,40 @@ void setup() {
   digitalWrite(PORT_SE_IN, HIGH);
 
   //フォントデータバッファ
-  uint8_t font_buf[26][16] = {0};
+  uint8_t font_buf[32][16] = {0};
   //フォント色データ　str1（半角文字毎に設定する）
-  uint8_t font_color1[26] = {G,G,G,G,R,R,G,G,G,G,G,R,G,G,G,G,R,G,G,G,G,R,O,O,O,O};
+  uint8_t font_color1[32] = {G,G,G,G,G,G,G,G,G,G,G,G,G,G,G,G,G,G,G,G,G,G,G,G,G,G,G,G,G,G,G,G};
 
   SFR.SPIFFS_Shinonome_Init3F(UTF8SJIS_file, Shino_Half_Font_file, Shino_Zen_Font_file);
   sj_length = SFR.StrDirect_ShinoFNT_readALL("  OK", font_buf);
   scrollLEDMatrix(sj_length, font_buf, font_color1, 80);
 
-  getWeatherInfo();
+  int forcast_time;
 
-}
+  uint16_t weather_state = getWeatherInfo(forcast_time);
 
-void loop() {
-
-  //uint16_t info = getWeatherInfo();
-
-  uint16_t info = 0;
-
-  switch(info){
-    case 0:
-      printTimeLEDMatrix();
-      delay(500);
+  switch(weather_state){
+    case RAINFALL_END:
+      Serial.printf("%d分後に雨が止む予報です。\n", forcast_time);
     break;
-    case 1:
-      printWeatherInfoLEDMatrix();
+    case RAINFALL_NO:
+      Serial.printf("現在、雨が降る予報はありません。\n");
+      sj_length = SFR.StrDirect_ShinoFNT_readALL("  現在、雨が降る予報はありません", font_buf);
+      scrollLEDMatrix(sj_length, font_buf, font_color1, 60);
+    break;
+    case RAINFALL_START:
+      Serial.printf("%d分後に雨が降る予報です。\n", forcast_time);    
+    break;
+    case RAINFALL_NOW:
+      Serial.printf("現在、雨が降っており、止む気配はありません。\n");    
     break;
     default:
       ;//nothing
   }
+}
+
+void loop() {
+  //１０分毎に時計の表示を一時停止する
+  printTimeLEDMatrix();
+  delay(500);
 }
