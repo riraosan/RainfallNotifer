@@ -326,9 +326,9 @@ void PrintTime(String &str, int flag)
   //      wd[tm->tm_wday],
   //      tm->tm_hour, tm->tm_min, tm->tm_sec); 
   if(flag == 0){
-    sprintf(tmp_str, " |%02d:%02d|", tm->tm_hour, tm->tm_min);
+    sprintf(tmp_str, " [%02d:%02d]", tm->tm_hour, tm->tm_min);
   }else{
-    sprintf(tmp_str, " |%02d %02d|", tm->tm_hour, tm->tm_min);
+    sprintf(tmp_str, " [%02d %02d]", tm->tm_hour, tm->tm_min);
   }
 
   str = tmp_str;
@@ -345,7 +345,7 @@ void printTimeLEDMatrix(){
   PrintTime(str, flag);
 
   //フォント色データ　str（半角文字毎に設定する）
-  uint8_t time_font_color[8] = {R,O,G,G,G,G,G,O};
+  uint8_t time_font_color[8] = {G,G,G,G,G,G,G,G};
   uint16_t sj_length = SFR.StrDirect_ShinoFNT_readALL(str, time_font_buf);
   printLEDMatrix(sj_length, time_font_buf, time_font_color);
 }
@@ -511,7 +511,7 @@ uint16_t getWeatherInfo(int &forcast_time){
 
   getYahooApiJsonInfo(httpRequest, weatherJsonInfo);
 
-  Serial.println(weatherJsonInfo);
+  //Serial.println(weatherJsonInfo);
 
   const size_t capacity = JSON_ARRAY_SIZE(1) + JSON_ARRAY_SIZE(7) + JSON_OBJECT_SIZE(1) + 3*JSON_OBJECT_SIZE(2) + 7*JSON_OBJECT_SIZE(3) + JSON_OBJECT_SIZE(4) + JSON_OBJECT_SIZE(7) + 660;
   DynamicJsonDocument doc(capacity);
@@ -555,6 +555,18 @@ uint16_t getWeatherInfo(int &forcast_time){
   return weatherInfo;
 }
 
+portTickType Delay1000 = 1000 / portTICK_RATE_MS; //freeRTOS 用の遅延時間定義
+TaskHandle_t th;
+
+void ClockTask(void *pvParameters) {
+  Serial.printf("Task1 coreID = %d, Task priority = %d\n", xPortGetCoreID(), uxTaskPriorityGet(th));
+ 
+  while(1) {
+    printTimeLEDMatrix();
+    delay(500);
+  }
+}
+
 void setup() {
 
   uint16_t sj_length = 0;//半角文字数 
@@ -589,7 +601,22 @@ void setup() {
   sj_length = SFR.StrDirect_ShinoFNT_readALL("  OK", font_buf);
   scrollLEDMatrix(sj_length, font_buf, font_color1, 80);
 
+  xTaskCreatePinnedToCore(ClockTask, "ClockTask", 4096, NULL, 10, &th, 1); //ClockTask実行
+
+}
+
+void loop() {
+  uint16_t sj_length = 0;//半角文字数 
+  
+  //フォントデータバッファ
+  uint8_t font_buf[32][16] = {0};
+  //フォント色データ　str1（半角文字毎に設定する）
+  uint8_t font_color1[32] = {G,G,G,G,G,G,G,G,G,G,G,G,G,G,G,G,G,G,G,G,G,G,G,G,G,G,G,G,G,G,G,G};
+ 
   int forcast_time;
+
+  //ClockTaskを停止する
+  vTaskSuspend(th);
 
   uint16_t weather_state = getWeatherInfo(forcast_time);
 
@@ -611,10 +638,10 @@ void setup() {
     default:
       ;//nothing
   }
-}
 
-void loop() {
-  //１０分毎に時計の表示を一時停止する
-  printTimeLEDMatrix();
-  delay(500);
+  //ClockTaskを再開する
+  vTaskResume(th);
+
+  //vTaskDelay(Delay1000 * 60 * 10); //10分待つ
+  vTaskDelay(Delay1000 * 60); //1分待つ
 }
