@@ -372,9 +372,13 @@ void getYahooApiJsonInfo(String httpRequest, String &resultJson){
     Serial.println("Connection failed!");
   }else {
     Serial.println("Connected to server!");
-  
+
+    delay(500);
+
     client.println(httpRequest);
     client.println();
+
+    delay(500);
 
     while (client.connected()) {
       String line = client.readStringUntil('\n');
@@ -383,6 +387,8 @@ void getYahooApiJsonInfo(String httpRequest, String &resultJson){
         break;
       }
     }
+
+    delay(500);
 
     while (client.available()) {
       resultJson += (char)client.read();
@@ -609,10 +615,18 @@ void loop() {
   uint16_t sj_length = 0;//半角文字数 
   
   //フォントデータバッファ
-  uint8_t font_buf[32][16] = {0};
+  uint8_t font_buf[66][16] = {0};
   //フォント色データ　str1（半角文字毎に設定する）
-  uint8_t font_color1[32] = {G,G,G,G,G,G,G,G,G,G,G,G,G,G,G,G,G,G,G,G,G,G,G,G,G,G,G,G,G,G,G,G};
+  uint8_t font_color1[66] = {G,G,G,G,G,G,G,G,O,O,
+                             O,O,O,O,O,O,O,O,O,O,
+                             O,O,G,G,G,G,G,G,G,G,
+                             G,G,G,G,G,G,G,G,G,G,
+                             G,G,G,G,G,G,G,G,G,G,
+                             G,G,G,G,G,G,G,G,G,G,
+                             G,G,G,G,G,G};
  
+  char tmp_str[66] = {0};
+
   int forcast_time;
 
   //ClockTaskを停止する
@@ -622,18 +636,27 @@ void loop() {
 
   switch(weather_state){
     case RAINFALL_END:
-      Serial.printf("%d分後に雨が止む予報です。\n", forcast_time);
+      Serial.printf("%d分後に雨が止む予報です\n", forcast_time);
+      sprintf(tmp_str, "        Yahoo!天気情報  %d分後に雨が止む予報です", forcast_time);          
+      sj_length = SFR.StrDirect_ShinoFNT_readALL(tmp_str, font_buf);
+      scrollLEDMatrix(sj_length, font_buf, font_color1, 30);
     break;
     case RAINFALL_NO:
-      Serial.printf("現在、雨が降る予報はありません。\n");
-      sj_length = SFR.StrDirect_ShinoFNT_readALL("  現在、雨が降る予報はありません", font_buf);
-      scrollLEDMatrix(sj_length, font_buf, font_color1, 60);
+      //Serial.printf("現在、雨が降る予報はありません\n");
+      //sj_length = SFR.StrDirect_ShinoFNT_readALL("        現在、雨が降る予報はありません", font_buf);
+      //scrollLEDMatrix(sj_length, font_buf, font_color1, 30);
+      ;//Do nothing
     break;
     case RAINFALL_START:
-      Serial.printf("%d分後に雨が降る予報です。\n", forcast_time);    
+      Serial.printf("%d分後に雨が降る予報です\n", forcast_time);
+      sprintf(tmp_str, "        Yahoo!天気情報  %d分後に雨が降る予報です", forcast_time);          
+      sj_length = SFR.StrDirect_ShinoFNT_readALL(tmp_str, font_buf);
+      scrollLEDMatrix(sj_length, font_buf, font_color1, 30);
     break;
     case RAINFALL_NOW:
-      Serial.printf("現在、雨が降っており、止む気配はありません。\n");    
+      Serial.printf("現在、雨が降っており、止む気配はありません\n");    
+      sj_length = SFR.StrDirect_ShinoFNT_readALL("        Yahoo!天気情報  現在、雨が降っており、止む気配はありません", font_buf);
+      scrollLEDMatrix(sj_length, font_buf, font_color1, 30);
     break;
     default:
       ;//nothing
@@ -641,7 +664,8 @@ void loop() {
 
   //ClockTaskを再開する
   vTaskResume(th);
-
+ 
   //vTaskDelay(Delay1000 * 60 * 10); //10分待つ
-  vTaskDelay(Delay1000 * 60); //1分待つ
+  //vTaskDelay(Delay1000 * 60); //1分待つ
+  vTaskDelay(Delay1000 * 60 * 5); //5分待つ
 }
