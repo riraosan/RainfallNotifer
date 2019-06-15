@@ -321,9 +321,9 @@ void PrintTime(String &str, int flag)
   tm = localtime(&t);
 
   if(flag == 0){
-    sprintf(tmp_str, "／ %02d:%02d", tm->tm_hour, tm->tm_min);
+    sprintf(tmp_str, "  %02d:%02d ", tm->tm_hour, tm->tm_min);
   }else{
-    sprintf(tmp_str, "＼ %02d %02d", tm->tm_hour, tm->tm_min);
+    sprintf(tmp_str, "  %02d %02d ", tm->tm_hour, tm->tm_min);
   }
 
   str = tmp_str;
@@ -653,9 +653,7 @@ void loop() {
       }
     break;
     case RAINFALL_NO://雨は降っていない。60分後の予報もない
-      //ClockTaskを再開する
-      vTaskResume(th);
-      return;
+      sprintf(tmp_str, " ");          
     break;
     case RAINFALL_START:
       if(forcast_time != 0){
