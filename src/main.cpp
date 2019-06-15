@@ -36,8 +36,7 @@ const char* ssid        = "Buffalo-G-FAA8";   //AP SSID
 const char* password    = "34ywce7cffyup";    //AP Pass Word
 
 const char* appid       = "dj00aiZpPU5xUWRpRTlhZXpBMCZzPWNvbnN1bWVyc2VjcmV0Jng9MzY-";//APP ID
-const char* zipcode     = "592-8344";
-//const char* coordinates = "135.449513,34.537694";//経度, 緯度
+const char* zipcode     = "592-8344";//郵便番号
 const char* output      = "json";//出力形式
 const char* server      = "map.yahooapis.jp";
 
@@ -317,18 +316,14 @@ void PrintTime(String &str, int flag)
   char tmp_str[10] = {0};
   time_t t;
   struct tm *tm;
-  //static const char *wd[7] = {"Sun","Mon","Tue","Wed","Thr","Fri","Sat"};
 
   t = time(NULL);
   tm = localtime(&t);
-  //Serial.printf(" %04d/%02d/%02d(%s) %02d:%02d:%02d\n",
-  //      tm->tm_year+1900, tm->tm_mon+1, tm->tm_mday,
-  //      wd[tm->tm_wday],
-  //      tm->tm_hour, tm->tm_min, tm->tm_sec); 
+
   if(flag == 0){
-    sprintf(tmp_str, " [%02d:%02d]", tm->tm_hour, tm->tm_min);
+    sprintf(tmp_str, "／ %02d:%02d", tm->tm_hour, tm->tm_min);
   }else{
-    sprintf(tmp_str, " [%02d %02d]", tm->tm_hour, tm->tm_min);
+    sprintf(tmp_str, "＼ %02d %02d", tm->tm_hour, tm->tm_min);
   }
 
   str = tmp_str;
@@ -534,8 +529,8 @@ uint16_t getWeatherInfo(int &forcast_time){
     for(int i = 1; i < 7; i++){
       getWeatherStrings(WeatherList, i, type, date, rainfall);
       if(rainfall > 0.00){
-        //i*10 分後に雨が降ります。
-        forcast_time = i * 10;
+        //(i*10-10)分後に雨が降ります。
+        forcast_time = i * 10 - 10;
         weatherInfo = RAINFALL_START;
         break;
       }
@@ -547,8 +542,8 @@ uint16_t getWeatherInfo(int &forcast_time){
     for(int i = 1; i < 7; i++){
       getWeatherStrings(WeatherList, i, type, date, rainfall);
       if(rainfall == 0.00){
-        //i*10 分後に雨が止みます。
-        forcast_time = i * 10;
+        //(i*10-10)分後に雨が止みます。
+        forcast_time = i * 10 - 10;
         weatherInfo = RAINFALL_END;
         break;
       }else{
@@ -565,12 +560,22 @@ portTickType Delay1000 = 1000 / portTICK_RATE_MS; //freeRTOS 用の遅延時間�
 TaskHandle_t th;
 
 void ClockTask(void *pvParameters) {
-  Serial.printf("Task1 coreID = %d, Task priority = %d\n", xPortGetCoreID(), uxTaskPriorityGet(th));
+  Serial.printf("Task coreID = %d, Task priority = %d\n", xPortGetCoreID(), uxTaskPriorityGet(th));
  
   while(1) {
     printTimeLEDMatrix();
     delay(500);
   }
+}
+
+void printConnecting(void){
+  //フォントデータバッファ
+  uint8_t font_buf[8][16] = {0};
+  //フォント色データ（半角文字毎に設定する）
+  uint8_t font_color1[8] = {G,G,G,G,G,G,G,G};
+
+  uint16_t sj_length = SFR.StrDirect_ShinoFNT_readALL("...     ", font_buf);
+  printLEDMatrix(sj_length, font_buf, font_color1);
 }
 
 void setup() {
@@ -605,9 +610,9 @@ void setup() {
 
   SFR.SPIFFS_Shinonome_Init3F(UTF8SJIS_file, Shino_Half_Font_file, Shino_Zen_Font_file);
   sj_length = SFR.StrDirect_ShinoFNT_readALL("  OK", font_buf);
-  scrollLEDMatrix(sj_length, font_buf, font_color1, 80);
+  scrollLEDMatrix(sj_length, font_buf, font_color1, 30);
 
-  xTaskCreatePinnedToCore(ClockTask, "ClockTask", 4096, NULL, 10, &th, 1); //ClockTask実行
+  xTaskCreatePinnedToCore(ClockTask, "ClockTask", 4096, NULL, 10, &th, 1); //ClockTask開始
 
 }
 
@@ -615,57 +620,62 @@ void loop() {
   uint16_t sj_length = 0;//半角文字数 
   
   //フォントデータバッファ
-  uint8_t font_buf[66][16] = {0};
+  uint8_t font_buf[100][16] = {0};
   //フォント色データ　str1（半角文字毎に設定する）
-  uint8_t font_color1[66] = {G,G,G,G,G,G,G,G,O,O,
+  uint8_t font_color1[100] = {G,G,G,G,G,G,G,G,O,O,
                              O,O,O,O,O,O,O,O,O,O,
                              O,O,G,G,G,G,G,G,G,G,
                              G,G,G,G,G,G,G,G,G,G,
                              G,G,G,G,G,G,G,G,G,G,
                              G,G,G,G,G,G,G,G,G,G,
-                             G,G,G,G,G,G};
+                             G,G,G,G,G,G,G,G,G,G,
+                             G,G,G,G,G,G,G,G,G,G,
+                             G,G,G,G,G,G,G,G,G,G,
+                             G,G,G,G,G,G,G,G,G,G};
  
-  char tmp_str[66] = {0};
+  char tmp_str[100] = {0};
 
   int forcast_time;
 
   //ClockTaskを停止する
   vTaskSuspend(th);
+  
+  printConnecting();
 
   uint16_t weather_state = getWeatherInfo(forcast_time);
 
   switch(weather_state){
     case RAINFALL_END:
-      Serial.printf("%d分後に雨が止む予報です\n", forcast_time);
-      sprintf(tmp_str, "        Yahoo!天気情報  %d分後に雨が止む予報です", forcast_time);          
-      sj_length = SFR.StrDirect_ShinoFNT_readALL(tmp_str, font_buf);
-      scrollLEDMatrix(sj_length, font_buf, font_color1, 30);
+      if(forcast_time != 0){
+        sprintf(tmp_str, "        Yahoo!天気情報  %d分後に雨が止む予報です。", forcast_time);          
+      }else{
+        sprintf(tmp_str, "        Yahoo!天気情報  すぐに雨が止む予報です。");          
+      }
     break;
-    case RAINFALL_NO:
-      //Serial.printf("現在、雨が降る予報はありません\n");
-      //sj_length = SFR.StrDirect_ShinoFNT_readALL("        現在、雨が降る予報はありません", font_buf);
-      //scrollLEDMatrix(sj_length, font_buf, font_color1, 30);
-      ;//Do nothing
+    case RAINFALL_NO://雨は降っていない。60分後の予報もない
+      //ClockTaskを再開する
+      vTaskResume(th);
+      return;
     break;
     case RAINFALL_START:
-      Serial.printf("%d分後に雨が降る予報です\n", forcast_time);
-      sprintf(tmp_str, "        Yahoo!天気情報  %d分後に雨が降る予報です", forcast_time);          
-      sj_length = SFR.StrDirect_ShinoFNT_readALL(tmp_str, font_buf);
-      scrollLEDMatrix(sj_length, font_buf, font_color1, 30);
+      if(forcast_time != 0){
+        sprintf(tmp_str, "        Yahoo!天気情報  %d分後に雨が降る予報です。", forcast_time);          
+      }else{
+        sprintf(tmp_str, "        Yahoo!天気情報  すぐに雨が降る予報です。");          
+      }
     break;
     case RAINFALL_NOW:
-      Serial.printf("現在、雨が降っており、止む気配はありません\n");    
-      sj_length = SFR.StrDirect_ShinoFNT_readALL("        Yahoo!天気情報  現在、雨が降っており、止む気配はありません", font_buf);
-      scrollLEDMatrix(sj_length, font_buf, font_color1, 30);
+      sprintf(tmp_str, "        Yahoo!天気情報  現在、雨が降っています。しばらく雨は続きます。");    
     break;
     default:
       ;//nothing
   }
+  Serial.printf("%s\n", tmp_str);
+  sj_length = SFR.StrDirect_ShinoFNT_readALL(tmp_str, font_buf);
+  scrollLEDMatrix(sj_length, font_buf, font_color1, 30);
 
   //ClockTaskを再開する
   vTaskResume(th);
  
-  //vTaskDelay(Delay1000 * 60 * 10); //10分待つ
-  //vTaskDelay(Delay1000 * 60); //1分待つ
   vTaskDelay(Delay1000 * 60 * 5); //5分待つ
 }
