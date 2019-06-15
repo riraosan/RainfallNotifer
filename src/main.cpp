@@ -653,7 +653,7 @@ void loop() {
       }
     break;
     case RAINFALL_NO://雨は降っていない。60分後の予報もない
-      sprintf(tmp_str, " ");          
+      sprintf(tmp_str, "        Yahoo!天気情報 雨は降っていません。");          
     break;
     case RAINFALL_START:
       if(forcast_time != 0){
