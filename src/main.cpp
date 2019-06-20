@@ -66,6 +66,8 @@ const char* yahooapi_root_ca= \
 ESP32_SPIFFS_ShinonomeFNT SFR;  //東雲フォントをSPIFFSから取得するライブラリ
 WiFiClientSecure client;
 
+SemaphoreHandle_t xMutex = NULL;
+
 //LEDマトリクスの書き込みアドレスを設定するメソッド
 void setRAMAdder(uint8_t lineNumber){
   uint8_t A[4] = {0};
@@ -557,14 +559,37 @@ uint16_t getWeatherInfo(int &forcast_time){
 }
 
 portTickType Delay1000 = 1000 / portTICK_RATE_MS; //freeRTOS 用の遅延時間定義
-TaskHandle_t th;
+TaskHandle_t hClock;
+TaskHandle_t hWeatherInfo;
 
 void ClockTask(void *pvParameters) {
-  Serial.printf("Task coreID = %d, Task priority = %d\n", xPortGetCoreID(), uxTaskPriorityGet(th));
+  Serial.printf("ClockTask coreID = %d, ClockTask priority = %d\n", xPortGetCoreID(), uxTaskPriorityGet(hClock));
+
+  BaseType_t xStatus;
+  const TickType_t xTicksToWait = 500UL;
+  xSemaphoreGive(xMutex);
  
-  while(1) {
-    printTimeLEDMatrix();
-    delay(500);
+  while(1){
+      xStatus = xSemaphoreTake(xMutex, xTicksToWait);
+
+      Serial.println("check for mutex (ClockTask)");
+
+      if(xStatus == pdTRUE){
+        time_t t;
+        struct tm *tm;
+
+        t = time(NULL);
+        tm = localtime(&t);
+
+        if(tm->tm_min % 5 == 0){
+          Serial.println("Give Semaphore(ClockTask)");
+          xSemaphoreGive(xMutex);
+        }else{
+          printTimeLEDMatrix();
+        }
+      }
+
+      delay(500);
   }
 }
 
@@ -576,6 +601,80 @@ void printConnecting(void){
 
   uint16_t sj_length = SFR.StrDirect_ShinoFNT_readALL("...     ", font_buf);
   printLEDMatrix(sj_length, font_buf, font_color1);
+}
+
+void WeatherInfoTask(void *pvParameters){
+  Serial.printf("WeatherInfoTask coreID = %d, WeatherInfoTask priority = %d\n", xPortGetCoreID(), uxTaskPriorityGet(hWeatherInfo));
+
+  BaseType_t xStatus;
+  const TickType_t xTicksToWait = 1000UL;
+  xSemaphoreGive(xMutex);
+
+  uint16_t sj_length = 0;//半角文字数 
+    
+  //フォントデータバッファ
+  uint8_t font_buf[100][16] = {0};
+  //フォント色データ　str1（半角文字毎に設定する）
+  uint8_t font_color1[100] = {G,G,G,G,G,G,G,G,O,O,
+                              O,O,O,O,O,O,O,O,O,O,
+                              O,O,G,G,G,G,G,G,G,G,
+                              G,G,G,G,G,G,G,G,G,G,
+                              G,G,G,G,G,G,G,G,G,G,
+                              G,G,G,G,G,G,G,G,G,G,
+                              G,G,G,G,G,G,G,G,G,G,
+                              G,G,G,G,G,G,G,G,G,G,
+                              G,G,G,G,G,G,G,G,G,G,
+                              G,G,G,G,G,G,G,G,G,G};
+  
+  char tmp_str[100] = {0};
+
+  int forcast_time;
+
+  while(1){
+
+    xStatus = xSemaphoreTake(xMutex, xTicksToWait);
+
+    //Serial.println("check for mutex (WeatherInfoTask)");
+
+    if(xStatus == pdTRUE ){
+      
+      printConnecting();
+
+      uint16_t weather_state = getWeatherInfo(forcast_time);
+
+      switch(weather_state){
+        case RAINFALL_END:
+          if(forcast_time != 0){
+            sprintf(tmp_str, "        Yahoo!天気情報  %d分後に雨が止む予報です。", forcast_time);          
+          }else{
+            sprintf(tmp_str, "        Yahoo!天気情報  すぐに雨が止む予報です。");          
+          }
+        break;
+        case RAINFALL_NO://雨は降っていない。60分後の予報もない
+          sprintf(tmp_str, "        Yahoo!天気情報 現在、雨が降る予報はありません。");          
+        break;
+        case RAINFALL_START:
+          if(forcast_time != 0){
+            sprintf(tmp_str, "        Yahoo!天気情報  %d分後に雨が降る予報です。", forcast_time);          
+          }else{
+            sprintf(tmp_str, "        Yahoo!天気情報  すぐに雨が降る予報です。");          
+          }
+        break;
+        case RAINFALL_NOW:
+          sprintf(tmp_str, "        Yahoo!天気情報  現在、雨が降っています。しばらく雨が続きます。");    
+        break;
+        default:
+          ;//nothing
+      }
+      Serial.printf("%s\n", tmp_str);
+      sj_length = SFR.StrDirect_ShinoFNT_readALL(tmp_str, font_buf);
+      scrollLEDMatrix(sj_length, font_buf, font_color1, 30); 
+    }
+
+    xSemaphoreGive(xMutex);
+    delay(10);
+
+  }
 }
 
 void setup() {
@@ -612,68 +711,19 @@ void setup() {
   sj_length = SFR.StrDirect_ShinoFNT_readALL("  OK", font_buf);
   scrollLEDMatrix(sj_length, font_buf, font_color1, 30);
 
-  xTaskCreatePinnedToCore(ClockTask, "ClockTask", 4096, NULL, 10, &th, 1); //ClockTask開始
+  xMutex = xSemaphoreCreateMutex();
 
+  if( xMutex != NULL ){
+    xTaskCreatePinnedToCore(ClockTask, "ClockTask", 4096, NULL, 1, &hClock, 1); //ClockTask開始
+    xTaskCreatePinnedToCore(WeatherInfoTask, "WeatherInfoTask", 8192, NULL, 2, &hWeatherInfo, 0); //WeatherInfoTask開始
+  }else{
+    while(1){
+        Serial.println("rtos mutex create error, stopped");
+        delay(1000);
+    }
+  }
 }
 
 void loop() {
-  uint16_t sj_length = 0;//半角文字数 
-  
-  //フォントデータバッファ
-  uint8_t font_buf[100][16] = {0};
-  //フォント色データ　str1（半角文字毎に設定する）
-  uint8_t font_color1[100] = {G,G,G,G,G,G,G,G,O,O,
-                             O,O,O,O,O,O,O,O,O,O,
-                             O,O,G,G,G,G,G,G,G,G,
-                             G,G,G,G,G,G,G,G,G,G,
-                             G,G,G,G,G,G,G,G,G,G,
-                             G,G,G,G,G,G,G,G,G,G,
-                             G,G,G,G,G,G,G,G,G,G,
-                             G,G,G,G,G,G,G,G,G,G,
-                             G,G,G,G,G,G,G,G,G,G,
-                             G,G,G,G,G,G,G,G,G,G};
- 
-  char tmp_str[100] = {0};
-
-  int forcast_time;
-
-  //ClockTaskを停止する
-  vTaskSuspend(th);
-  
-  printConnecting();
-
-  uint16_t weather_state = getWeatherInfo(forcast_time);
-
-  switch(weather_state){
-    case RAINFALL_END:
-      if(forcast_time != 0){
-        sprintf(tmp_str, "        Yahoo!天気情報  %d分後に雨が止む予報です。", forcast_time);          
-      }else{
-        sprintf(tmp_str, "        Yahoo!天気情報  すぐに雨が止む予報です。");          
-      }
-    break;
-    case RAINFALL_NO://雨は降っていない。60分後の予報もない
-      sprintf(tmp_str, "        Yahoo!天気情報 雨は降っていません。");          
-    break;
-    case RAINFALL_START:
-      if(forcast_time != 0){
-        sprintf(tmp_str, "        Yahoo!天気情報  %d分後に雨が降る予報です。", forcast_time);          
-      }else{
-        sprintf(tmp_str, "        Yahoo!天気情報  すぐに雨が降る予報です。");          
-      }
-    break;
-    case RAINFALL_NOW:
-      sprintf(tmp_str, "        Yahoo!天気情報  現在、雨が降っています。しばらく雨は続きます。");    
-    break;
-    default:
-      ;//nothing
-  }
-  Serial.printf("%s\n", tmp_str);
-  sj_length = SFR.StrDirect_ShinoFNT_readALL(tmp_str, font_buf);
-  scrollLEDMatrix(sj_length, font_buf, font_color1, 30);
-
-  //ClockTaskを再開する
-  vTaskResume(th);
- 
-  vTaskDelay(Delay1000 * 60 * 5); //5分待つ
+  ;
 }
