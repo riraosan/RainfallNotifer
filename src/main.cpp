@@ -39,6 +39,7 @@ const char* appid       = "dj00aiZpPU5xUWRpRTlhZXpBMCZzPWNvbnN1bWVyc2VjcmV0Jng9M
 const char* zipcode     = "592-8344";//郵便番号
 const char* output      = "json";//出力形式
 const char* server      = "map.yahooapis.jp";
+const int informPeriod  = 10;//10分間隔で降雨情報を取得
 
 const char* yahooapi_root_ca= \
      "-----BEGIN CERTIFICATE-----\n" \
@@ -433,7 +434,7 @@ void getCoordinatesFromZipcode(String zipcode, String &coordinates){
 
   getYahooApiJsonInfo(httpRequest, resultJson);
 
-  //Serial.println(resultJson);
+  Serial.println(resultJson);
 
   const size_t capacity = JSON_ARRAY_SIZE(0) + JSON_ARRAY_SIZE(1) + JSON_ARRAY_SIZE(2) + JSON_ARRAY_SIZE(3) + 6*JSON_OBJECT_SIZE(2) + JSON_OBJECT_SIZE(7) + 2*JSON_OBJECT_SIZE(8) + 3*JSON_OBJECT_SIZE(9) + 990;
 
@@ -514,7 +515,7 @@ uint16_t getWeatherInfo(int &forcast_time){
 
   getYahooApiJsonInfo(httpRequest, weatherJsonInfo);
 
-  //Serial.println(weatherJsonInfo);
+  Serial.println(weatherJsonInfo);
 
   const size_t capacity = JSON_ARRAY_SIZE(1) + JSON_ARRAY_SIZE(7) + JSON_OBJECT_SIZE(1) + 3*JSON_OBJECT_SIZE(2) + 7*JSON_OBJECT_SIZE(3) + JSON_OBJECT_SIZE(4) + JSON_OBJECT_SIZE(7) + 660;
   DynamicJsonDocument doc(capacity);
@@ -572,7 +573,7 @@ void ClockTask(void *pvParameters) {
   while(1){
       xStatus = xSemaphoreTake(xMutex, xTicksToWait);
 
-      Serial.println("check for mutex (ClockTask)");
+      //Serial.println("check for mutex (ClockTask)");
 
       if(xStatus == pdTRUE){
         time_t t;
@@ -581,7 +582,7 @@ void ClockTask(void *pvParameters) {
         t = time(NULL);
         tm = localtime(&t);
 
-        if(tm->tm_min % 5 == 0){
+        if(tm->tm_min % informPeriod == 0){
           Serial.println("Give Semaphore(ClockTask)");
           xSemaphoreGive(xMutex);
         }else{
