@@ -1,3 +1,27 @@
+/* 
+The MIT License (MIT)
+
+Copyright (c) 2019 riraotech.com
+
+Permission is hereby granted, free of charge, to any person obtaining a copy
+of this software and associated documentation files (the "Software"), to deal
+in the Software without restriction, including without limitation the rights
+to use, copy, modify, merge, publish, distribute, sublicense, and/or sell
+copies of the Software, and to permit persons to whom the Software is
+furnished to do so, subject to the following conditions:
+
+The above copyright notice and this permission notice shall be included in all
+copies or substantial portions of the Software.
+
+THE SOFTWARE IS PROVIDED "AS IS", WITHOUT WARRANTY OF ANY KIND, EXPRESS OR
+IMPLIED, INCLUDING BUT NOT LIMITED TO THE WARRANTIES OF MERCHANTABILITY,
+FITNESS FOR A PARTICULAR PURPOSE AND NONINFRINGEMENT. IN NO EVENT SHALL THE
+AUTHORS OR COPYRIGHT HOLDERS BE LIABLE FOR ANY CLAIM, DAMAGES OR OTHER
+LIABILITY, WHETHER IN AN ACTION OF CONTRACT, TORT OR OTHERWISE, ARISING FROM,
+OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE
+SOFTWARE.
+*/
+
 #include <Arduino.h>
 #include <ESP32_SPIFFS_ShinonomeFNT.h>
 #include <ESP32_SPIFFS_UTF8toSJIS.h>
@@ -371,12 +395,10 @@ void getYahooApiJsonInfo(String httpRequest, String &resultJson){
   }else {
     Serial.println("Connected to server!");
 
-    delay(500);
-
     client.println(httpRequest);
     client.println();
 
-    delay(500);
+    delay(200);
 
     while (client.connected()) {
       String line = client.readStringUntil('\n');
@@ -386,7 +408,7 @@ void getYahooApiJsonInfo(String httpRequest, String &resultJson){
       }
     }
 
-    delay(500);
+    delay(200);
 
     while (client.available()) {
       resultJson += (char)client.read();
@@ -582,7 +604,8 @@ void ClockTask(void *pvParameters) {
         t = time(NULL);
         tm = localtime(&t);
 
-        if(tm->tm_min % informPeriod == 0){
+        if(tm->tm_min % informPeriod == 0 && tm->tm_sec < 10){
+          Serial.printf("tm_sec = %d\n", tm->tm_sec);
           Serial.println("Give Semaphore(ClockTask)");
           xSemaphoreGive(xMutex);
         }else{
