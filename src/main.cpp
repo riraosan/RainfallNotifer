@@ -638,10 +638,12 @@ void WeatherInfoTask(void *pvParameters){
     
   //フォントデータバッファ
   uint8_t font_buf[100][16] = {0};
+  uint8_t yahoo_font_buf[8][16] = {0};
+
   //フォント色データ　str1（半角文字毎に設定する）
-  uint8_t font_color1[100] = {G,G,G,G,G,G,G,G,O,O,
-                              O,O,O,O,O,O,O,O,O,O,
-                              O,O,G,G,G,G,G,G,G,G,
+  uint8_t font_color1[100] = {G,G,G,G,G,G,G,G,G,G,
+                              G,G,G,G,G,G,G,G,G,G,
+                              G,G,G,G,G,G,G,G,G,G,
                               G,G,G,G,G,G,G,G,G,G,
                               G,G,G,G,G,G,G,G,G,G,
                               G,G,G,G,G,G,G,G,G,G,
@@ -649,7 +651,9 @@ void WeatherInfoTask(void *pvParameters){
                               G,G,G,G,G,G,G,G,G,G,
                               G,G,G,G,G,G,G,G,G,G,
                               G,G,G,G,G,G,G,G,G,G};
-  
+
+  uint8_t yahoo_font_color[8] = {O,O,O,O,O,O,O,O};
+
   char tmp_str[100] = {0};
 
   int forcast_time;
@@ -666,26 +670,38 @@ void WeatherInfoTask(void *pvParameters){
 
       uint16_t weather_state = getWeatherInfo(forcast_time);
 
+      //ここでビープ音を出音する
+
+      sj_length = SFR.StrDirect_ShinoFNT_readALL(" Yahoo! ", yahoo_font_buf);
+      printLEDMatrix(sj_length, yahoo_font_buf, yahoo_font_color);
+
+      delay(1000);
+
+      sj_length = SFR.StrDirect_ShinoFNT_readALL("気象情報", yahoo_font_buf);
+      printLEDMatrix(sj_length, yahoo_font_buf, yahoo_font_color);
+
+      delay(2000);
+
       switch(weather_state){
         case RAINFALL_END:
           if(forcast_time != 0){
-            sprintf(tmp_str, "        Yahoo!天気情報  %d分後に雨が止む予報です。", forcast_time);          
+            sprintf(tmp_str, "        %d分後に雨が止む予報です。", forcast_time);          
           }else{
-            sprintf(tmp_str, "        Yahoo!天気情報  すぐに雨が止む予報です。");          
+            sprintf(tmp_str, "        すぐに雨が止む予報です。");          
           }
         break;
         case RAINFALL_NO://雨は降っていない。60分後の予報もない
-          sprintf(tmp_str, "        Yahoo!天気情報 現在、雨が降る予報はありません。");          
+          sprintf(tmp_str, "        雨が降る予報はありません。");          
         break;
         case RAINFALL_START:
           if(forcast_time != 0){
-            sprintf(tmp_str, "        Yahoo!天気情報  %d分後に雨が降る予報です。", forcast_time);          
+            sprintf(tmp_str, "        %d分後に雨が降る予報です。", forcast_time);          
           }else{
-            sprintf(tmp_str, "        Yahoo!天気情報  すぐに雨が降る予報です。");          
+            sprintf(tmp_str, "        すぐに雨が降る予報です。");          
           }
         break;
         case RAINFALL_NOW:
-          sprintf(tmp_str, "        Yahoo!天気情報  現在、雨が降っています。しばらく雨が続きます。");    
+          sprintf(tmp_str, "        雨が降っています。しばらく雨が続きます。");    
         break;
         default:
           ;//nothing
