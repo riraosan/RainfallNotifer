@@ -60,7 +60,8 @@ const char* ssid        = "Buffalo-G-FAA8";   //AP SSID
 const char* password    = "34ywce7cffyup";    //AP Pass Word
 
 const char* appid       = "dj00aiZpPU5xUWRpRTlhZXpBMCZzPWNvbnN1bWVyc2VjcmV0Jng9MzY-";//APP ID
-const char* zipcode     = "592-8344";//郵便番号
+//const char* zipcode     = "592-8344";//郵便番号
+const char* zipcode     = "183-0045";//郵便番号
 const char* output      = "json";//出力形式
 const char* server      = "map.yahooapis.jp";
 const int informPeriod  = 10;//10分間隔で降雨情報を取得
@@ -419,10 +420,12 @@ void getYahooApiJsonInfo(String httpRequest, String &resultJson){
 }
 
 void makeGetZipCodeStr(String zipcode, String &getStr){
-    getStr = "GET /search/zip/V1/zipCodeSearch?query=";
+    getStr = "GET https://map.yahooapis.jp/search/zip/V1/zipCodeSearch?query=";
     getStr += zipcode;
     getStr += "&output=";
     getStr += output;
+    getStr += "&appid=";
+    getStr += appid;
     getStr += " HTTP/1.1";
 } 
 
@@ -438,10 +441,10 @@ void makeZipCodeHttpRequestStr(String &httpRequest){
 
   httpRequest = getStr;
   httpRequest += "\n";
-  httpRequest += hostStr;
-  httpRequest += "\n";
-  httpRequest += agentStr;
-  httpRequest += "\n";
+  //httpRequest += hostStr;
+  //httpRequest += "\n";
+  //httpRequest += agentStr;
+  //httpRequest += "\n";
   httpRequest += "Connection: close";
 }
 
@@ -456,7 +459,7 @@ void getCoordinatesFromZipcode(String zipcode, String &coordinates){
 
   getYahooApiJsonInfo(httpRequest, resultJson);
 
-  Serial.println(resultJson);
+  //Serial.println(resultJson);
 
   const size_t capacity = JSON_ARRAY_SIZE(0) + JSON_ARRAY_SIZE(1) + JSON_ARRAY_SIZE(2) + JSON_ARRAY_SIZE(3) + 6*JSON_OBJECT_SIZE(2) + JSON_OBJECT_SIZE(7) + 2*JSON_OBJECT_SIZE(8) + 3*JSON_OBJECT_SIZE(9) + 990;
 
@@ -474,10 +477,12 @@ void getCoordinatesFromZipcode(String zipcode, String &coordinates){
 }
 
 void makeGetStr(String coordinates, String &getStr){
-  getStr = "GET /weather/V1/place?coordinates="; 
+  getStr = "GET https://map.yahooapis.jp/weather/V1/place?coordinates=";
   getStr += coordinates;
   getStr += "&output=";
   getStr += output;
+  getStr += "&appid=";
+  getStr += appid;
   getStr += " HTTP/1.1";
 }
 
@@ -495,10 +500,10 @@ void makeWeatherHttpRequestStr(String &httpRequest){
 
   httpRequest = getStr;
   httpRequest += "\n";
-  httpRequest += hostStr;
-  httpRequest += "\n";
-  httpRequest += agentStr;
-  httpRequest += "\n";
+  //httpRequest += hostStr;
+  //httpRequest += "\n";
+  //httpRequest += agentStr;
+  //httpRequest += "\n";
   httpRequest += "Connection: close";
 }
 
@@ -507,6 +512,8 @@ void getWeatherStrings(JsonArray &i_weather, int i_index, String &o_type, String
   const char* Type = Feature_0_Property_WeatherList_Weather_0["Type"];
   const char* Date = Feature_0_Property_WeatherList_Weather_0["Date"];
   float Rainfall = Feature_0_Property_WeatherList_Weather_0["Rainfall"];
+
+  Serial.printf("Type = %s, Date = %s, Rainfall= %f\n", Type, Date, Rainfall);
 
   o_type = Type;
   o_date = Date;
@@ -537,7 +544,7 @@ uint16_t getWeatherInfo(int &forcast_time){
 
   getYahooApiJsonInfo(httpRequest, weatherJsonInfo);
 
-  Serial.println(weatherJsonInfo);
+  //Serial.println(weatherJsonInfo);
 
   const size_t capacity = JSON_ARRAY_SIZE(1) + JSON_ARRAY_SIZE(7) + JSON_OBJECT_SIZE(1) + 3*JSON_OBJECT_SIZE(2) + 7*JSON_OBJECT_SIZE(3) + JSON_OBJECT_SIZE(4) + JSON_OBJECT_SIZE(7) + 660;
   DynamicJsonDocument doc(capacity);
@@ -546,7 +553,7 @@ uint16_t getWeatherInfo(int &forcast_time){
   JsonObject Feature_0 = doc["Feature"][0];
 
   JsonArray WeatherList = Feature_0["Property"]["WeatherList"]["Weather"];
-
+  
   getWeatherStrings(WeatherList, 0, type, date, rainfall);
 
   //現在雨が降っていない
